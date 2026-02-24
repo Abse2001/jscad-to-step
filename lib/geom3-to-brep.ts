@@ -21,8 +21,10 @@ import {
   dot,
   lengthSq,
   normalize,
+  newellNormal,
   applyTransform,
   vertexKey,
+  cleanVec3,
 } from "./vec-math.ts"
 
 interface Polygon {
@@ -153,7 +155,8 @@ export function geom3ToBrep(
     const key = vertexKey(pos)
     let ref = vertexMap.get(key)
     if (!ref) {
-      const pt = repo.add(new CartesianPoint("", pos[0], pos[1], pos[2]))
+      const clean = cleanVec3(pos)
+      const pt = repo.add(new CartesianPoint("", clean[0], clean[1], clean[2]))
       ref = repo.add(new VertexPoint("", pt))
       vertexMap.set(key, ref)
     }
@@ -182,7 +185,7 @@ export function geom3ToBrep(
       const startPos = aKey < bKey ? aPos : bPos
       const endPos = aKey < bKey ? bPos : aPos
 
-      const d = normalize(subtract(endPos, startPos))
+      const d = cleanVec3(normalize(subtract(endPos, startPos)))
       const dir = repo.add(new Direction("", d[0], d[1], d[2]))
       const vec = repo.add(new Vector("", dir, 1))
       const startPt = startRef.resolve(repo).pnt
@@ -246,22 +249,32 @@ export function geom3ToBrep(
 
     if (orientedEdges.length < 3) continue
 
-    // Compute face normal from first three unique vertices
-    const v0 = uniquePositions[0]!
-    const v1 = uniquePositions[1]!
-    const v2 = uniquePositions[2]!
-    const ab = subtract(v1, v0)
-    const ac = subtract(v2, v0)
-    const normal = normalize(cross(ab, ac))
+    // Compute face normal using Newell method (robust for colinear vertices)
+    const normal = cleanVec3(newellNormal(uniquePositions))
 
     // Create plane
-    const planeOrigin = repo.add(new CartesianPoint("", v0[0], v0[1], v0[2]))
+    const v0 = uniquePositions[0]!
+    const cleanV0 = cleanVec3(v0)
+    const planeOrigin = repo.add(
+      new CartesianPoint("", cleanV0[0], cleanV0[1], cleanV0[2]),
+    )
     const planeNormal = repo.add(
       new Direction("", normal[0], normal[1], normal[2]),
     )
 
-    // Compute ref direction (perpendicular to normal, in the plane)
-    const edge0Dir = normalize(ab)
+    // Compute ref direction: find a non-degenerate edge for the in-plane reference
+    let refVec: Vec3 = [1, 0, 0]
+    for (let i = 0; i < uniquePositions.length; i++) {
+      const edgeDir = subtract(
+        uniquePositions[(i + 1) % uniquePositions.length]!,
+        uniquePositions[i]!,
+      )
+      if (lengthSq(edgeDir) > 1e-14) {
+        refVec = normalize(edgeDir)
+        break
+      }
+    }
+    const edge0Dir = cleanVec3(refVec)
     const refDir = repo.add(
       new Direction("", edge0Dir[0], edge0Dir[1], edge0Dir[2]),
     )
