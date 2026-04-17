@@ -23,15 +23,16 @@ import {
 } from "stepts"
 import { geom3ToBrep } from "./geom3-to-brep.ts"
 import { applyColorChain } from "./color.ts"
+import { normalizeColorInput, type StepColorInput } from "./colors/index.ts"
 
 interface Geom3Like {
   polygons: Array<{ vertices: any[] }>
   transforms?: number[]
-  color?: number[]
+  color?: StepColorInput
 }
 
 interface RenderedModel {
-  geometries: Array<{ geom: Geom3Like; color?: number[] }>
+  geometries: Array<{ geom: Geom3Like; color?: StepColorInput }>
 }
 
 function isRenderedModel(input: any): input is RenderedModel {
@@ -48,7 +49,7 @@ function resolveGeometries(input: JscadOperation | RenderedModel): Geom3Like[] {
   if (isRenderedModel(input)) {
     return input.geometries.map((entry) => {
       const geom = entry.geom
-      if (entry.color && Array.isArray(entry.color) && !geom.color) {
+      if (entry.color && !geom.color) {
         return { ...geom, color: entry.color }
       }
       return geom
@@ -147,8 +148,9 @@ export function jscadToStep(operation: JscadOperation): string {
     shapeItems.push(solid)
 
     // Apply color if present
-    if (geom.color && Array.isArray(geom.color) && geom.color.length >= 3) {
-      const styledItem = applyColorChain(repo, solid, geom.color)
+    const color = normalizeColorInput(geom.color)
+    if (color) {
+      const styledItem = applyColorChain(repo, solid, color)
       colorItems.push(styledItem)
     }
   }
