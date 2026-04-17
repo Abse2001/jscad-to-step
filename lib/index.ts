@@ -31,6 +31,8 @@ interface Geom3Like {
   color?: StepColorInput
 }
 
+type BrepGeom3Like = Omit<Geom3Like, "color">
+
 interface RenderedModel {
   geometries: Array<{ geom: Geom3Like; color?: StepColorInput }>
 }
@@ -140,7 +142,8 @@ export function jscadToStep(operation: JscadOperation): string {
   for (const geom of geometries) {
     if (!geom?.polygons || geom.polygons.length === 0) continue
 
-    const faces = geom3ToBrep(repo, geom)
+    const { color: _color, ...brepGeom } = geom
+    const faces = geom3ToBrep(repo, brepGeom satisfies BrepGeom3Like)
     if (faces.length === 0) continue
 
     const shell = repo.add(new ClosedShell("", faces))
